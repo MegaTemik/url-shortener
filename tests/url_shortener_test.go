@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	host = "localhost:8082"
+	host = "localhost:8080"
 )
 
 func TestURLShortener_HappyPath(t *testing.T) {

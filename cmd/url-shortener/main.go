@@ -8,9 +8,11 @@ import (
 	"url-shortener/internal/http-server/handlers/redirect"
 	"url-shortener/internal/lib/logger/handlers/slogpretty"
 	"url-shortener/internal/lib/logger/sl"
-	"url-shortener/internal/storage/sqlite"
+	"url-shortener/internal/storage/postgres"
 
+	"url-shortener/internal/http-server/handlers/url/delete"
 	"url-shortener/internal/http-server/handlers/url/save"
+	"url-shortener/internal/http-server/handlers/url/update"
 	mwLogger "url-shortener/internal/http-server/middleware/logger"
 
 	"github.com/go-chi/chi/v5"
@@ -34,11 +36,12 @@ func main() {
 	)
 	log.Debug("debug messages are enabled")
 
-	storage, err := sqlite.New(cfg.StoragePath)
+	storage, err := postgres.New(cfg.DatabaseURL)
 	if err != nil {
 		log.Error("failded to init storage", sl.Err(err))
 		os.Exit(1)
 	}
+	defer storage.Close()
 
 	_ = storage
 
@@ -55,12 +58,11 @@ func main() {
 			cfg.HTTPServer.User: cfg.HTTPServer.Password,
 		}))
 		r.Post("/", save.New(log, storage))
-		// TODO: add DELETE /url/{id}
-
+		r.Put("/", update.New(log, storage))
+		r.Delete("/{alias}", delete.New(log, storage))
 	})
 
 	router.Get("/{alias}", redirect.New(log, storage))
-	//router.Delete()
 
 	log.Info("starting server", slog.String("address", cfg.Address))
 
@@ -92,7 +94,6 @@ func setupLogger(env string) *slog.Logger {
 		log = slog.New(
 			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}),
 		)
-
 	}
 
 	return log

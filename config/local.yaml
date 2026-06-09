@@ -1,7 +1,6 @@
 env: "local" #local, dev, prod
-storage_path: "./storage/storage.db"
 http_server:
-  address: "localhost:8082"
+  address: "localhost:8080"
   timeout: 4s #время на чтения запроса и такое же на обработку
   idle_timeout: 60s #время жизни соединения
   user: "myuser"
