@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
+	"strconv"
 	resp "url-shortener/internal/lib/api/response"
 	"url-shortener/internal/lib/logger/sl"
 	"url-shortener/internal/lib/random"
@@ -23,9 +25,6 @@ type Response struct {
 	resp.Response
 	Alias string `json:"alias,omitempty"`
 }
-
-// TODO: move to config ?
-const aliasLength = 6
 
 //go:generate go run github.com/vektra/mockery/v2@latest --name=URLSaver
 type URLSaver interface {
@@ -64,6 +63,13 @@ func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 
 		alias := req.Alias
 		if alias == "" {
+			aliasLengthStr := os.Getenv("ALIAS_LENGTH")
+			aliasLength, err := strconv.Atoi(aliasLengthStr)
+			if err != nil {
+				log.Error("failed to parse ALIAS_LENGTH", sl.Err(err))
+				render.JSON(w, r, resp.Error("failed to parse ALIAS_LENGTH"))
+				return
+			}
 			alias = random.NewRandomString(aliasLength)
 		}
 
@@ -89,7 +95,6 @@ func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 		responseOK(w, r, alias)
 
 	}
-
 }
 
 func responseOK(w http.ResponseWriter, r *http.Request, alias string) {

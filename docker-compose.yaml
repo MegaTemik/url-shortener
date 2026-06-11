@@ -1,0 +1,31 @@
+services:
+  backend:
+    image: url-shortener
+    build:
+      context: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CONFIG_PATH: "config/local.yaml"
+      DATABASE_URL: "postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}"
+      AUTH_USER: ${AUTH_USER}
+      AUTH_PASSWORD: ${AUTH_PASSWORD}
+      ALIAS_LENGTH: ${ALIAS_LENGTH}
+  db:
+    image: postgres:18.0
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-data:/var/lib/postgresql
+
+volumes:
+  db-data:
+
