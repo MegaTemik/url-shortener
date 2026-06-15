@@ -8,6 +8,7 @@ import (
 	"url-shortener/internal/http-server/handlers/redirect"
 	"url-shortener/internal/lib/logger/handlers/slogpretty"
 	"url-shortener/internal/lib/logger/sl"
+	"url-shortener/internal/service"
 	"url-shortener/internal/storage/postgres"
 
 	"url-shortener/internal/http-server/handlers/url/delete"
@@ -43,7 +44,7 @@ func main() {
 	}
 	defer storage.Close()
 
-	_ = storage
+	urlService := service.NewURLService(storage, cfg.AliasLength)
 
 	router := chi.NewRouter()
 
@@ -57,12 +58,12 @@ func main() {
 		r.Use(middleware.BasicAuth("url-shortener", map[string]string{
 			cfg.Auth.User: cfg.Auth.Password,
 		}))
-		r.Post("/", save.New(log, storage))
-		r.Put("/", update.New(log, storage))
-		r.Delete("/{alias}", delete.New(log, storage))
+		r.Post("/", save.New(log, urlService))
+		r.Put("/", update.New(log, urlService))
+		r.Delete("/{alias}", delete.New(log, urlService))
 	})
 
-	router.Get("/{alias}", redirect.New(log, storage))
+	router.Get("/{alias}", redirect.New(log, urlService))
 
 	log.Info("starting server", slog.String("address", cfg.Address))
 

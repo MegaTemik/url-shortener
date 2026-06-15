@@ -6,16 +6,15 @@ import (
 	"net/http"
 	resp "url-shortener/internal/lib/api/response"
 	"url-shortener/internal/lib/logger/sl"
-	"url-shortener/internal/storage"
+	"url-shortener/internal/service"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	"github.com/go-playground/validator/v10"
 )
 
 type Request struct {
-	Alias  string `json:"alias" validate:"required"`
-	NewURL string `json:"url" validate:"required,url"`
+	Alias  string `json:"alias"`
+	NewURL string `json:"url"`
 }
 
 type Response struct {
@@ -23,11 +22,12 @@ type Response struct {
 	CountUpdated int64 `json:"countUpdated"`
 }
 
-type UpdateURL interface {
-	UpdateURL(alias, newURL string) (int64, error)
+//go:generate go run github.com/vektra/mockery/v2@latest --name=URLUpdater
+type URLUpdater interface {
+	RegisterUpdateURL(inputReq service.UpdateURLInput) (int64, error)
 }
 
-func New(log *slog.Logger, updateURL UpdateURL) http.HandlerFunc {
+func New(log *slog.Logger, urlUpdate URLUpdater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const op = "handlers.url.update.New"
 
@@ -40,36 +40,40 @@ func New(log *slog.Logger, updateURL UpdateURL) http.HandlerFunc {
 		err := render.DecodeJSON(r.Body, &req)
 		if err != nil {
 			log.Error("failded to decode request body", sl.Err(err))
-			render.JSON(w, r, resp.Error("failed to decode request bidy"))
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, resp.Error("failed to decode request"))
 			return
 		}
 
 		log.Info("request body decode", slog.Any("request", req))
 
-		if err := validator.New().Struct(req); err != nil {
-			validateErr := err.(validator.ValidationErrors)
-			log.Error("validation error", sl.Err(err))
-			render.JSON(w, r, resp.ValidationError(validateErr))
-			return
+		inputReq := service.UpdateURLInput{
+			Alias:  req.Alias,
+			NewURL: req.NewURL,
 		}
 
-		alias := req.Alias
-		newURL := req.NewURL
-
-		countUpdated, err := updateURL.UpdateURL(alias, newURL)
-		if errors.Is(err, storage.ErrURLNotFound) {
-			log.Info("url not found", "alias", alias)
-			render.JSON(w, r, resp.Error("url not found"))
-			return
-		}
-
+		countUpdated, err := urlUpdate.RegisterUpdateURL(inputReq)
 		if err != nil {
-			log.Error("failed to update url", "alias", alias, sl.Err(err))
+			if errors.Is(err, service.ErrInvalidURL) {
+				log.Error("invalid url", sl.Err(err))
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, resp.Error("invalid url"))
+				return
+			} else if errors.Is(err, service.ErrURLNotFound) {
+				log.Info("url not found", "alias", inputReq.Alias)
+				render.Status(r, http.StatusNotFound)
+				render.JSON(w, r, resp.Error("url not found"))
+				return
+			}
+		}
+		if err != nil {
+			log.Error("failed to update url", sl.Err(err))
+			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, resp.Error("failed to update url"))
 			return
 		}
 
-		log.Info("url updated", slog.String("alias", alias), slog.Int64("count_updated", countUpdated))
+		log.Info("url updated", slog.String("alias", inputReq.Alias), slog.Int64("count_updated", countUpdated))
 
 		responseOK(w, r, countUpdated)
 	}

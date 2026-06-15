@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -11,9 +12,10 @@ import (
 
 type Config struct {
 	Env         string `yaml:"env" env:"ENV" env-Default:"local"`
-	DatabaseURL string `yaml:"database_url" env:"DATABASE_URL"`
+	DatabaseURL string
 	HTTPServer  `yaml:"http_server"`
-	Auth
+	Auth        Auth
+	AliasLength int
 }
 
 type Auth struct {
@@ -22,7 +24,7 @@ type Auth struct {
 }
 
 type HTTPServer struct {
-	Address     string        `yaml:"address" env-default:"localhost:8080"`
+	Address     string        `yaml:"address" env-default:":8080"`
 	TimeOut     time.Duration `yaml:"timeout" env-default:"4s"`
 	IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
 }
@@ -68,6 +70,16 @@ func MustLoad() *Config {
 	if cfg.Auth.User == "" || cfg.Auth.Password == "" {
 		log.Fatal("Authentication credentials are not set in config or environment variables")
 	}
+
+	aliasLengthStr := os.Getenv("ALIAS_LENGTH")
+	if aliasLengthStr == "" {
+		log.Fatal("ALIAS_LENGTH is not set")
+	}
+	aliasLength, err := strconv.Atoi(aliasLengthStr)
+	if err != nil {
+		log.Fatalf("failed to parse ALIAS_LENGTH: %s", err)
+	}
+	cfg.AliasLength = aliasLength
 
 	return &cfg
 }

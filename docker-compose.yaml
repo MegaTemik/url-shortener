@@ -12,6 +12,8 @@ services:
       AUTH_USER: ${AUTH_USER}
       AUTH_PASSWORD: ${AUTH_PASSWORD}
       ALIAS_LENGTH: ${ALIAS_LENGTH}
+    ports:
+      - "8080:8080"
   db:
     image: postgres:18.0
     environment:
